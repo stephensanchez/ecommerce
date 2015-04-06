@@ -18,7 +18,7 @@ from ecommerce.extensions.order.models import Order
 from ecommerce.extensions.payment.processors import BasePaymentProcessor, Cybersource
 from ecommerce.extensions.payment.errors import ExcessiveMerchantDefinedData
 from ecommerce.extensions.payment.constants import CybersourceConstants as CS
-from ecommerce.extensions.payment.constants import ProcessorConstants as PC
+from ecommerce.extensions.payment.constants import PaymentProcessorConstants as PPC
 from ecommerce.extensions.fulfillment.status import ORDER
 
 
@@ -74,8 +74,8 @@ class BasePaymentProcessorTests(PaymentProcessorTestCase):
 
     @raises(NotImplementedError)
     def test_base_processor_get_parameters_unusable(self):
-        """Test that use of the get_transaction_parameters base payment processor class fails."""
-        BasePaymentProcessor().get_transaction_parameters(self.order)
+        """Test that use of the generate_transaction_parameters base payment processor class fails."""
+        BasePaymentProcessor().generate_transaction_parameters(self.order)
 
     @raises(NotImplementedError)
     def test_processor_reponse_unusable(self):
@@ -148,11 +148,11 @@ class CybersourceParameterGenerationTests(CybersourceTests):
         # Generate a list of strings with a number of elements exceeding the maximum number
         # of optional fields allowed by CyberSource
         excessive_data = [unicode(i) for i in xrange(CS.MAX_OPTIONAL_FIELDS + 1)]
-        Cybersource().get_transaction_parameters(self.order, merchant_defined_data=excessive_data)
+        Cybersource().generate_transaction_parameters(self.order, merchant_defined_data=excessive_data)
 
     def _assert_order_parameters(self, order, receipt_page_url=None, cancel_page_url=None, merchant_defined_data=None):
         """Verify that returned transaction parameters match expectations."""
-        returned_parameters = Cybersource().get_transaction_parameters(
+        returned_parameters = Cybersource().generate_transaction_parameters(
             order,
             receipt_page_url=receipt_page_url,
             cancel_page_url=cancel_page_url,
@@ -213,8 +213,8 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect that we processed the payment successfully
-        self.assertTrue(result[PC.SUCCESS])
-        self.assertEqual(result[PC.ORDER_NUMBER], self.order.number)
+        self.assertTrue(result[PPC.SUCCESS])
+        self.assertEqual(result[PPC.ORDER_NUMBER], self.order.number)
 
     def test_process_payment_invalid_signature(self):
         """ Simulate a callback from CyberSource indicating that the payment has an invalid signature """
@@ -224,7 +224,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect that we get an error
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
 
     def test_process_payment_invalid_order(self):
         """ Use an invalid order ID """
@@ -234,7 +234,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect an error
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
 
     def test_process_invalid_payment_amount(self):
         """ Change the payment amount (no longer matches the database order record) """
@@ -244,7 +244,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect an error
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
 
     def test_process_amount_paid_not_decimal(self):
         """ Change the payment amount to a non-decimal """
@@ -254,7 +254,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect an error
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
 
     def test_process_user_cancelled(self):
         """ Simulate a user cancelling the transaction """
@@ -265,7 +265,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect an error
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
         # verify that the order has been updated
         order = Order.objects.get(number=self.order.number)
         self.assertEquals(order.status, ORDER.PAYMENT_CANCELLED)
@@ -279,7 +279,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect an error
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
 
     def test_process_payment_declined(self):
         """ Simulate the processor declining the transaction """
@@ -290,7 +290,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect an error
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
         # verify that the order has been updated
         order = Order.objects.get(number=self.order.number)
         self.assertEquals(order.status, ORDER.PAYMENT_ERROR)
@@ -304,7 +304,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect an error
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
 
     def test_process_no_credit_card_digits(self):
         """ Simulate a credit card number with no digits provided """
@@ -316,7 +316,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
 
         # Expect that we processed the payment successfully
         self.assertTrue(
-            result[PC.SUCCESS],
+            result[PPC.SUCCESS],
         )
 
     @ddt.data('req_reference_number', 'req_currency', 'decision', 'auth_amount')
@@ -336,7 +336,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
         result = Cybersource().handle_processor_response(params)
 
         # Expect an error
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
 
     def test_process_error_parameters(self):
         """ Test when CyberSource returns an ERROR decision, the order status is updated. """
@@ -344,7 +344,7 @@ class CybersourcePaymentAcceptanceTests(CybersourceTests):
             self.order.number, self.order_total, self.order_total, currency=self.order.currency, decision=CS.ERROR
         )
         result = Cybersource().handle_processor_response(params)
-        self.assertFalse(result[PC.SUCCESS])
+        self.assertFalse(result[PPC.SUCCESS])
         order = Order.objects.get(number=self.order.number)
         self.assertEquals(order.status, ORDER.PAYMENT_ERROR)
 

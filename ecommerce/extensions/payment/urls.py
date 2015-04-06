@@ -1,8 +1,8 @@
-from django.conf.urls import patterns, url
+from django.conf.urls import patterns, url, include
 
-from extensions.payment import views
-from extensions.order.constants import ORDER_NUMBER_PATTERN
-from extensions.payment.constants import CybersourceConstants as CS
+from ecommerce.extensions.payment import views
+from ecommerce.extensions.order.constants import ORDER_NUMBER_PATTERN
+from ecommerce.extensions.payment.constants import CybersourceConstants as CS
 
 
 CYBERSOURCE_URLS = patterns(

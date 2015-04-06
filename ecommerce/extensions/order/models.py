@@ -6,12 +6,6 @@ from ecommerce.extensions.fulfillment.status import ORDER
 
 
 class Order(AbstractOrder):
-    payment_processor = models.CharField(_("Payment Processor"), max_length=32, blank=True)
-
-    @property
-    def is_paid(self):
-        return self.status in [ORDER.PAID, ORDER.REFUNDED, ORDER.COMPLETE, ORDER.FULFILLMENT_ERROR]
-
     @property
     def can_retry_fulfillment(self):
         """ Returns a boolean indicating if order is eligible to retry fulfillment. """

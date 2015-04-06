@@ -15,7 +15,7 @@ from ecommerce.extensions.payment.errors import (
     CybersourceError, WrongAmountException, DataException
 )
 from ecommerce.extensions.payment.constants import CybersourceConstants as CS
-from ecommerce.extensions.payment.constants import ProcessorConstants as PC
+from ecommerce.extensions.payment.constants import PaymentProcessorConstants as PPC
 from ecommerce.extensions.fulfillment.status import ORDER
 
 
@@ -39,7 +39,7 @@ class BasePaymentProcessor(object):
         """
         return settings.PAYMENT_PROCESSOR_CONFIG[self.NAME]
 
-    def get_transaction_parameters(
+    def generate_transaction_parameters(
             self,
             order,
             receipt_page_url=None,
@@ -76,9 +76,9 @@ class Cybersource(BasePaymentProcessor):
         self.secret_key = configuration['secret_key']
         self.language_code = settings.LANGUAGE_CODE
 
-    def get_transaction_parameters(
+    def generate_transaction_parameters(
             self,
-            order,
+            basket,
             receipt_page_url=None,
             cancel_page_url=None,
             merchant_defined_data=None
@@ -86,7 +86,7 @@ class Cybersource(BasePaymentProcessor):
         """Generate a dictionary of signed parameters CyberSource requires to complete a transaction.
 
         Arguments:
-            order (Order): The order whose line items are to be purchased as part of the transaction.
+            basket (Basket): The basket whose lines are to be purchased as part of the transaction.
 
         Keyword Arguments:
             receipt_page_url (unicode): If provided, overrides the receipt page URL on the Secure Acceptance
@@ -101,8 +101,8 @@ class Cybersource(BasePaymentProcessor):
         Returns:
             dict: CyberSource-specific parameters required to complete a transaction, including a signature.
         """
-        transaction_parameters = self._get_raw_transaction_parameters(
-            order,
+        transaction_parameters = self._generate_raw_transaction_parameters(
+            basket,
             receipt_page_url,
             cancel_page_url,
             merchant_defined_data
@@ -111,7 +111,7 @@ class Cybersource(BasePaymentProcessor):
         transaction_parameters[CS.FIELD_NAMES.SIGNATURE] = self._generate_signature(transaction_parameters)
 
         logger.info(
-            u"Signed CyberSource transaction parameters for order [%s]",
+            u"Signed CyberSource transaction parameters for basket [%s]",
             transaction_parameters.get(CS.FIELD_NAMES.REFERENCE_NUMBER)
         )
 
@@ -137,10 +137,10 @@ class Cybersource(BasePaymentProcessor):
             dict
 
         """
-        result = {PC.SUCCESS: False, PC.ORDER_NUMBER: None}
+        result = {PPC.SUCCESS: False, PPC.ORDER_NUMBER: None}
         try:
             valid_params = self._verify_signatures(params)
-            result[PC.ORDER_NUMBER] = valid_params[CS.FIELD_NAMES.REQ_REFERENCE_NUMBER]
+            result[PPC.ORDER_NUMBER] = valid_params[CS.FIELD_NAMES.REQ_REFERENCE_NUMBER]
             if valid_params[CS.FIELD_NAMES.DECISION] == CS.ACCEPT:
                 # make sure the auth amount and currency is what we expect from Cybersource
                 self._check_payment_consistency(
@@ -148,14 +148,14 @@ class Cybersource(BasePaymentProcessor):
                     valid_params[CS.FIELD_NAMES.AUTH_AMOUNT],
                     valid_params[CS.FIELD_NAMES.REQ_CURRENCY]
                 )
-                result[PC.SUCCESS] = True
+                result[PPC.SUCCESS] = True
         except CybersourceError:
             logger.exception(u"Error handling CyberSource response.")
             logger.info(json.dumps(params))
         finally:
             return result  # pylint: disable=lost-exception
 
-    def _get_raw_transaction_parameters(self, order, receipt_page_url, cancel_page_url, merchant_defined_data):
+    def _generate_raw_transaction_parameters(self, basket, receipt_page_url, cancel_page_url, merchant_defined_data):
         """Generate a dictionary of unsigned parameters CyberSource requires to complete a transaction.
 
         The 'signed_field_names' parameter should be a string containing a comma-separated list of all keys in
@@ -163,7 +163,7 @@ class Cybersource(BasePaymentProcessor):
         to determine which parameters to sign, although the signing itself occurs separately.
 
         Arguments:
-            order (Order): The order whose line items are to be purchased as part of the transaction.
+            basket (Basket): The basket whose lines are to be purchased as part of the transaction.
             receipt_page_url (unicode): Overrides the receipt page URL on the Secure Acceptance profile
                 in use for this transaction.
             cancel_page_url (unicode): Overrides the cancellation page URL on the Secure Acceptance profile
@@ -197,7 +197,7 @@ class Cybersource(BasePaymentProcessor):
         # authorize through Secure Acceptance, then later process the settlement. Although they
         # are two separate transactions, when taken together the authorization and the settlement
         # constitute one charge. As such, they would be assigned the same reference number.
-        parameters[CS.FIELD_NAMES.REFERENCE_NUMBER] = order.number
+        parameters[CS.FIELD_NAMES.REFERENCE_NUMBER] = unicode(basket.id)
 
         # Unique identifier associated with this transaction; must be a string.
         parameters[CS.FIELD_NAMES.TRANSACTION_UUID] = uuid.uuid4().hex
@@ -209,10 +209,10 @@ class Cybersource(BasePaymentProcessor):
         parameters[CS.FIELD_NAMES.PAYMENT_METHOD] = CS.PAYMENT_METHOD
 
         # ISO currency code representing the currency in which to conduct the transaction.
-        parameters[CS.FIELD_NAMES.CURRENCY] = order.currency
+        parameters[CS.FIELD_NAMES.CURRENCY] = basket.currency
 
         # Total amount to be charged. May contain numeric characters and a decimal point; must be a string.
-        parameters[CS.FIELD_NAMES.AMOUNT] = unicode(order.total_excl_tax)
+        parameters[CS.FIELD_NAMES.AMOUNT] = u'{:.2f}'.format(basket.total_excl_tax)
 
         # IETF language tag representing the language to use for customer-facing content.
         parameters[CS.FIELD_NAMES.LOCALE] = self.language_code
@@ -240,7 +240,10 @@ class Cybersource(BasePaymentProcessor):
         # the parameters dictionary before returning it.
         parameters[CS.FIELD_NAMES.SIGNED_FIELD_NAMES] = CS.SEPARATOR.join(parameters.keys())
 
-        logger.info(u"Generated unsigned CyberSource transaction parameters for order [%s]", order.number)
+        logger.info(
+            u"Generated unsigned CyberSource transaction parameters for basket [%s]",
+            parameters.get(CS.FIELD_NAMES.REFERENCE_NUMBER)
+        )
 
         return parameters
 
@@ -265,9 +268,7 @@ class Cybersource(BasePaymentProcessor):
         # Generate a comma-separated list of keys and values to be signed. CyberSource refers to this
         # as a 'Version 1' signature in their documentation.
         message = CS.SEPARATOR.join(
-            [CS.MESSAGE_SUBSTRUCTURE.format(
-                key=key, value=parameters.get(key)
-            ) for key in target_parameters]
+            [CS.MESSAGE_SUBSTRUCTURE.format(key=key, value=parameters.get(key)) for key in target_parameters]
         )
 
         return sign(message, self.secret_key)

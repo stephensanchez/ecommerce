@@ -5,7 +5,7 @@ from django.test.utils import override_settings
 from oscar.test import factories
 from oscar.core.loading import get_model
 
-from ecommerce.extensions.payment.constants import ProcessorConstants as PC
+from ecommerce.extensions.payment.constants import PaymentProcessorConstants as PPC
 from ecommerce.extensions.payment.processors import BasePaymentProcessor
 from ecommerce.extensions.fulfillment.status import ORDER
 
@@ -26,7 +26,7 @@ class DummyGenericFailureProcessor(BasePaymentProcessor):
     """ Mocks out a failure response from the processor. """
     NAME = 'DummyFailureProcessor'
 
-    def get_transaction_parameters(
+    def generate_transaction_parameters(
             self,
             order,
             receipt_page_url=None,
@@ -38,14 +38,14 @@ class DummyGenericFailureProcessor(BasePaymentProcessor):
 
     def handle_processor_response(self, params):
         """ Return the expected output. """
-        return {PC.SUCCESS: False, PC.ORDER_NUMBER: None}
+        return {PPC.SUCCESS: False, PPC.ORDER_NUMBER: None}
 
 
 class DummyErrorFailureProcessor(BasePaymentProcessor):
     """ Mocks out a failure response from the processor when we also receive an error. """
     NAME = 'DummyFailureProcessor'
 
-    def get_transaction_parameters(
+    def generate_transaction_parameters(
             self,
             order,
             receipt_page_url=None,
@@ -59,14 +59,14 @@ class DummyErrorFailureProcessor(BasePaymentProcessor):
         """ Return the expected output. """
         order = Order.objects.get(number=ORDER_NUMBER)
         order.set_status(ORDER.PAYMENT_ERROR)
-        return {PC.SUCCESS: False, PC.ORDER_NUMBER: None}
+        return {PPC.SUCCESS: False, PPC.ORDER_NUMBER: None}
 
 
 class DummySuccessProcessor(BasePaymentProcessor):
     """ Mocks out a success response from the processor. """
     NAME = 'DummySuccessProcessor'
 
-    def get_transaction_parameters(
+    def generate_transaction_parameters(
             self,
             order,
             receipt_page_url=None,
@@ -78,7 +78,7 @@ class DummySuccessProcessor(BasePaymentProcessor):
 
     def handle_processor_response(self, params):
         """ Return the expected output. """
-        return {PC.SUCCESS: True, PC.ORDER_NUMBER: ORDER_NUMBER}
+        return {PPC.SUCCESS: True, PPC.ORDER_NUMBER: ORDER_NUMBER}
 
 
 # Reuse the fake fulfillment module provided by the test_api tests
@@ -93,7 +93,7 @@ class CybersoureResponseViewTestCase(TestCase):
         self.order = factories.create_order(number=ORDER_NUMBER, status=ORDER.BEING_PROCESSED)
         # Create a type of event that gets used during fulfillment
         ShippingEventType.objects.create(code='shipped', name='Shipped')
-        PaymentEventType.objects.create(name=PC.PAID_EVENT_NAME)
+        PaymentEventType.objects.create(name=PPC.PAID_EVENT_NAME)
 
     @override_settings(
         PAYMENT_PROCESSORS=[SUCCESS_PROCESSOR],
@@ -108,7 +108,7 @@ class CybersoureResponseViewTestCase(TestCase):
         self.assertEquals(order.status, ORDER.COMPLETE)
 
         # Ensure that the payment event was also recorded
-        event_type = PaymentEventType.objects.get(name=PC.PAID_EVENT_NAME)
+        event_type = PaymentEventType.objects.get(name=PPC.PAID_EVENT_NAME)
         events = PaymentEvent.objects.filter(event_type=event_type)
         self.assertGreater(events.count(), 0)
         for event in events:
@@ -124,7 +124,7 @@ class CybersoureResponseViewTestCase(TestCase):
         order = Order.objects.get(number=ORDER_NUMBER)
         self.assertEquals(order.status, ORDER.BEING_PROCESSED)
 
-        event_type = PaymentEventType.objects.get(name=PC.PAID_EVENT_NAME)
+        event_type = PaymentEventType.objects.get(name=PPC.PAID_EVENT_NAME)
         events = PaymentEvent.objects.filter(event_type=event_type)
         self.assertEquals(events.count(), 0)
 
@@ -140,6 +140,6 @@ class CybersoureResponseViewTestCase(TestCase):
         order = Order.objects.get(number=ORDER_NUMBER)
         self.assertEquals(order.status, ORDER.PAYMENT_ERROR)
 
-        event_type = PaymentEventType.objects.get(name=PC.PAID_EVENT_NAME)
+        event_type = PaymentEventType.objects.get(name=PPC.PAID_EVENT_NAME)
         events = PaymentEvent.objects.filter(event_type=event_type)
         self.assertEquals(events.count(), 0)

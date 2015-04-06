@@ -36,6 +36,8 @@ OSCAR_INITIAL_ORDER_STATUS = ORDER.OPEN
 OSCAR_INITIAL_LINE_STATUS = LINE.OPEN
 
 # This dict defines the new order statuses than an order can move to
+# TODO: Update to reflect new order life cycle. As long as the "Complete"
+# state is kept here and below, this shouldn't disrupt the way the LMS uses v1.
 OSCAR_ORDER_STATUS_PIPELINE = {
     ORDER.OPEN: (ORDER.BEING_PROCESSED, ORDER.ORDER_CANCELLED,),
     ORDER.ORDER_CANCELLED: (),
@@ -49,6 +51,7 @@ OSCAR_ORDER_STATUS_PIPELINE = {
 }
 
 # This is a dict defining all the statuses a single line in an order may have.
+# TODO: Update to reflect new order (line) life cycle
 OSCAR_LINE_STATUS_PIPELINE = {
     LINE.OPEN: (LINE.BEING_PROCESSED, LINE.ORDER_CANCELLED,),
     LINE.ORDER_CANCELLED: (),
@@ -80,6 +83,7 @@ OSCAR_LINE_STATUS_PIPELINE = {
 
 # This dict defines the line statuses that will be set when an order's status
 # is changed
+# TODO: Update to reflect new order (line) life cycle
 OSCAR_ORDER_STATUS_CASCADE = {
     ORDER.OPEN: LINE.OPEN,
     ORDER.BEING_PROCESSED: LINE.BEING_PROCESSED,
@@ -108,11 +112,6 @@ AUTHENTICATION_BACKENDS = (
 
 OSCAR_DEFAULT_CURRENCY = 'USD'
 # END ORDER PROCESSING
-
-
-# RATE LIMITING
-ORDERS_ENDPOINT_RATE_LIMIT = '40/minute'
-# END RATE LIMITING
 
 
 # PAYMENT PROCESSING

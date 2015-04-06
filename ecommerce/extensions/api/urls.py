@@ -11,7 +11,11 @@ BASKET_URLS = patterns(
 
 ORDER_URLS = patterns(
     '',
+    # V1 DEPRECATION: Use OrderListAPIView instead of OrderListCreateAPIView. Django stops
+    # cascading through URL patterns once it finds one that matches the requested URL, so
+    # we can just remove the first of these patterns when we're ready to drop v1.
     url(r'^$', views.OrderListCreateAPIView.as_view(), name='create_list'),
+    url(r'^$', views.OrderListAPIView.as_view(), name='list'),
     url(
         r'^{number}/$'.format(number=ORDER_NUMBER_PATTERN),
         views.RetrieveOrderView.as_view(),

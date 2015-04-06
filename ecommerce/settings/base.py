@@ -390,4 +390,10 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20
 }
+
+# TODO: Update configuration to reflect the new structure of this setting.
+RATE_LIMITS = {
+    'BASKET_ENDPOINTS': '40/minute',
+    'ORDER_ENDPOINTS': '40/minute',
+}
 # END DJANGO REST FRAMEWORK

@@ -1,11 +1,17 @@
 """Payment processor constants."""
 
 
-class ProcessorConstants(object):
+class PaymentEventNames(object):
+    """Commonly used payment event names."""
+    PREAUTHORIZATION = u'preauthorization'
+    SETTLEMENT = u'settlement'
+
+
+class PaymentProcessorConstants(object):
     """ Constants that are used by all payment processors """
     ORDER_NUMBER = 'order_number'
     SUCCESS = 'success'
-    PAID_EVENT_NAME = 'Paid'
+    PAYMENT_EVENT_NAMES = PaymentEventNames()
 
 
 class CybersourceFieldNames(object):

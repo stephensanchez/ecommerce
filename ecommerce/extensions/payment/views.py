@@ -1,24 +1,24 @@
 """Views for interacting with payment processors."""
+from decimal import Decimal as D
+
 from django.conf import settings
 from django.http import HttpResponse
 from django.views.generic import View
-from oscar.core.loading import get_model
-from oscar.apps.checkout.mixins import OrderPlacementMixin
-from oscar.apps.payment.models import SourceType
+from oscar.core.loading import get_model, get_class
 
-from ecommerce.extensions.order.models import Order
-from ecommerce.extensions.fulfillment.status import ORDER
-from ecommerce.extensions.fulfillment.mixins import FulfillmentMixin
+from ecommerce.extensions.checkout.mixins import EdxOrderPlacementMixin
 from ecommerce.extensions.payment.processors import Cybersource
-from ecommerce.extensions.payment.constants import ProcessorConstants as PC
-from ecommerce.extensions.payment.helpers import get_processor_class
+from ecommerce.extensions.payment.constants import PaymentProcessorConstants as PPC
+from ecommerce.extensions.api.constants import EcommerceAPIConstants as AC
+from ecommerce.extensions.fulfillment.status import ORDER
 
 
+Free = get_class('shipping.methods', 'Free')
 SourceType = get_model('payment', 'SourceType')
-Order = get_model('order', 'Order')
+OrderTotalCalculator = get_class('checkout.calculators', 'OrderTotalCalculator')
 
 
-class CybersourceNotificationView(View, OrderPlacementMixin, FulfillmentMixin):
+class CybersourceNotificationView(EdxOrderPlacementMixin, View):
     """Handle a "merchant notification" from CyberSource.
 
     CyberSource will notify this endpoint after a transaction completes with information
@@ -36,44 +36,35 @@ class CybersourceNotificationView(View, OrderPlacementMixin, FulfillmentMixin):
             HTTP_200_OK
         """
         transaction_data = request.POST.dict()
-        # TODO: Pick up here! Use built in payment processing.
         result = Cybersource().handle_processor_response(transaction_data)
 
-        if result[PC.SUCCESS]:
-            # get the order
-            order = Order.objects.get(number=result[PC.ORDER_NUMBER])
-            # register the money in Oscar
-            self._register_payment(order, self.Cybersource.NAME)
-            # fulfill the order
-            self._fulfill_order(order)
+        if result[PPC.SUCCESS]:
+            # TODO: Retrieve using reference number from CyberSource
+            basket = None
+
+            order_metadata = data.get_order_metadata(basket)
+
+            # Handle payment
+            self.handle_payment(
+                payment_processor=Cybersource,
+                reference=transaction_data[CS.FIELD_NAMES.REQ_REFERENCE_NUMBER],
+                total=total
+            )
+
+            # Place an order, attempting to fulfill it immediately
+            self.handle_order_placement(
+                order_number=order_metadata[AC.KEYS.ORDER_NUMBER],
+                user=basket.owner,
+                basket=basket,
+                shipping_address=None,
+                shipping_method=order_metadata[AC.KEYS.SHIPPING_METHOD],
+                shipping_charge=order_metadata[AC.KEYS.SHIPPING_CHARGE],
+                # TODO: Pull from the validated CyberSource parameters
+                billing_address=None,
+                order_total=order_metadata[AC.KEYS.ORDER_TOTAL]
+            )
 
         return HttpResponse()
-
-    def _register_payment(self, order, processor_name):
-        """
-        Records the payment source and event and updates the order status
-
-        Args:
-            order (Order): the order that is being paid for
-            processor_name (str): the name of the processor that will be processing this payment
-
-        Returns:
-            None
-        """
-
-        # get the source
-        source_type, _ = SourceType.objects.get_or_create(name=processor_name)
-        source = source_type.sources.model(
-            source_type=source_type, amount_allocated=order.total_excl_tax, currency=order.currency
-        )
-
-        # record payment events
-        self.add_payment_source(source)
-        self.add_payment_event(PC.PAID_EVENT_NAME, order.total_excl_tax, order.number)
-        self.save_payment_details(order)
-
-        # update the status of the order
-        order.set_status(ORDER.PAID)
 
 
 class ReceiptView(View):
