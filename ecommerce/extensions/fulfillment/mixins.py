@@ -1,5 +1,4 @@
-""" Mixins to support views that fulfill orders. """
-
+"""Mixins to support views that fulfill orders."""
 from oscar.core.loading import get_class
 
 from ecommerce.extensions.api import data
@@ -9,7 +8,7 @@ EventHandler = get_class('order.processing', 'EventHandler')
 
 
 class FulfillmentMixin(object):
-    """ A mixin that provides the ability to fulfill orders. """
+    """Provides the ability to fulfill orders."""
     SHIPPING_EVENT_NAME = 'Shipped'
 
     def _fulfill_order(self, order):
@@ -19,4 +18,5 @@ class FulfillmentMixin(object):
 
         shipping_event = data.get_shipping_event_type(self.SHIPPING_EVENT_NAME)
         fulfilled_order = EventHandler().handle_shipping_event(order, shipping_event, order_lines, line_quantities)
+
         return fulfilled_order

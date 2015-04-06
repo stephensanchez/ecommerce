@@ -1,9 +1,13 @@
 from django.conf.urls import patterns, url, include
 
 from ecommerce.extensions.api import views
+from ecommerce.extensions.order.constants import ORDER_NUMBER_PATTERN
 
 
-ORDER_NUMBER_PATTERN = r"(?P<number>[-\w]+)"
+BASKET_URLS = patterns(
+    '',
+    url(r'^$', views.BasketCreateAPIView.as_view(), name='create'),
+)
 
 ORDER_URLS = patterns(
     '',
@@ -22,5 +26,6 @@ ORDER_URLS = patterns(
 
 urlpatterns = patterns(
     '',
-    url(r'^orders/', include(ORDER_URLS, namespace='orders'))
+    url(r'^baskets/', include(BASKET_URLS, namespace='basket')),
+    url(r'^orders/', include(ORDER_URLS, namespace='orders')),
 )

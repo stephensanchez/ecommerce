@@ -26,20 +26,6 @@ class BasePaymentProcessor(object):
     """Base payment processor class."""
     NAME = None
 
-    def get_transaction_parameters(
-            self,
-            order,
-            receipt_page_url=None,
-            cancel_page_url=None,
-            merchant_defined_data=None
-    ):
-        """Generate a dictionary of transaction parameters to be sent to a payment processor."""
-        raise NotImplementedError("Transaction parameters method not implemented.")
-
-    def handle_processor_response(self, params):
-        """ Handles the response from the payment processor """
-        raise NotImplementedError("Processor response method not implemented.")
-
     @property
     def configuration(self):
         """
@@ -52,6 +38,20 @@ class BasePaymentProcessor(object):
             KeyError: If no settings found for this payment processor.
         """
         return settings.PAYMENT_PROCESSOR_CONFIG[self.NAME]
+
+    def get_transaction_parameters(
+            self,
+            order,
+            receipt_page_url=None,
+            cancel_page_url=None,
+            merchant_defined_data=None
+    ):
+        """Generate a dictionary of transaction parameters to be sent to a payment processor."""
+        raise NotImplementedError("Transaction parameter generation not implemented.")
+
+    def validate_transaction_parameters(self, parameters):
+        """Verify the integrity of transaction parameters returned by a payment processor."""
+        raise NotImplementedError("Transaction parameter validation not implemented.")
 
 
 class Cybersource(BasePaymentProcessor):
@@ -117,7 +117,7 @@ class Cybersource(BasePaymentProcessor):
 
         return transaction_parameters
 
-    def handle_processor_response(self, params):
+    def validate_transaction_parameters(self, parameters):
         """
         Handle a response from the payment processor.
 

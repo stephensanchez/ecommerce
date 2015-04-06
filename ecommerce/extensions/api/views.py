@@ -4,6 +4,7 @@ import logging
 from django.conf import settings
 from django.http import Http404
 from oscar.core.loading import get_class, get_classes, get_model
+from oscar.apps.checkout.mixins import OrderPlacementMixin
 from rest_framework import status
 from rest_framework.generics import UpdateAPIView, RetrieveAPIView, ListCreateAPIView
 from rest_framework.permissions import IsAuthenticated, DjangoModelPermissions
@@ -13,7 +14,7 @@ from ecommerce.extensions.api import data, errors, serializers
 from ecommerce.extensions.api.throttling import OrdersThrottle
 from ecommerce.extensions.fulfillment.status import ORDER
 from ecommerce.extensions.fulfillment.mixins import FulfillmentMixin
-from ecommerce.extensions.payment.helpers import get_processor_class
+from extensions.payment.helpers import get_default_payment_processor
 
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ class RetrieveOrderView(RetrieveAPIView):
             raise Http404
 
 
-class OrderListCreateAPIView(FulfillmentMixin, ListCreateAPIView):
+class OrderListCreateAPIView(OrderPlacementMixin, FulfillmentMixin, ListCreateAPIView):
     """
     Endpoint for listing or creating orders.
 
@@ -188,7 +189,7 @@ class OrderListCreateAPIView(FulfillmentMixin, ListCreateAPIView):
         if not availability.is_available_to_buy:
             return self._report_bad_request(availability.message, errors.PRODUCT_UNAVAILABLE_USER_MESSAGE)
 
-        payment_processor = get_processor_class(settings.PAYMENT_PROCESSORS[0])
+        payment_processor = get_default_payment_processor()
 
         order = self._prepare_order(basket, product, sku, payment_processor)
         if order.status == ORDER.PAID:
@@ -275,6 +276,7 @@ class OrderListCreateAPIView(FulfillmentMixin, ListCreateAPIView):
     def _assemble_order_data(self, order, payment_processor):
         """Assemble a dictionary of metadata for the provided order."""
         order_data = serializers.OrderSerializer(order).data
+        # TODO: Provide custom receipt and cancellation pages when generating transaction parameters
         order_data['payment_parameters'] = payment_processor().get_transaction_parameters(order)
 
         return order_data
